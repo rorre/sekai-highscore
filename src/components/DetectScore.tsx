@@ -72,7 +72,6 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
           .substring(startIdx, startIdx + metricLength)
           .replaceAll("o", "0");
         const num = Number(valueStr);
-        console.log(idx, num, valueStr);
         if (isNaN(num)) throw Error("Failed to parse metric");
 
         stats[metric] = num;
