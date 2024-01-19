@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createWorker } from "tesseract.js";
 import { SongDifficulty, SongType, Stats } from "../types";
 import meta from "../meta.json";
+import { useDropzone } from "react-dropzone";
 
 type State = "Idle" | "Recognizing" | "Error";
 
@@ -17,6 +18,14 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
   const [engWorker, setEngWorker] = useState<Tesseract.Worker | null>(null);
   const [jpnWorker, setJpnWorker] = useState<Tesseract.Worker | null>(null);
   const [state, setState] = useState<State>("Idle");
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: onFileChange,
+    accept: {
+      "image/*": [".png", ".jpeg", ".jpg"],
+    },
+  });
 
   useEffect(() => {
     async function inner() {
@@ -30,11 +39,11 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
     inner();
   }, []);
 
-  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onFileChange(files: File[]) {
     if (!engWorker || !jpnWorker) return;
     setState("Recognizing");
-    const file = e.target.files![0];
-    e.target.value = "";
+    setErrors([]);
+    const file = files[0];
 
     try {
       const reader = new FileReader();
@@ -46,6 +55,7 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
         .replaceAll("g00d", "good")
         .replaceAll("g0od", "good")
         .replaceAll("go0d", "good");
+
       const stats: Stats = {
         perfect: 0,
         great: 0,
@@ -53,6 +63,8 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
         bad: 0,
         miss: 0,
       };
+
+      const errors: string[] = [];
 
       for (const metric of [
         "perfect",
@@ -62,7 +74,11 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
         "miss",
       ] as const) {
         const idx = enText.indexOf(metric.toUpperCase());
-        if (idx == -1) throw Error("Cannot find metric");
+        if (idx == -1) {
+          errors.push("Cannot find metric " + metric);
+          setErrors(errors);
+          continue;
+        }
 
         const startIdx = idx + metric.length + 1; // +1 for space
         const substr = enText.substring(startIdx);
@@ -72,7 +88,12 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
           .substring(startIdx, startIdx + metricLength)
           .replaceAll("o", "0");
         const num = Number(valueStr);
-        if (isNaN(num)) throw Error("Failed to parse metric");
+
+        if (isNaN(num)) {
+          errors.push("Failed to parse metric " + metric);
+          setErrors(errors);
+          continue;
+        }
 
         stats[metric] = num;
       }
@@ -85,7 +106,7 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
           ).length == 1
       );
 
-      if (songResult.length == 1) {
+      if (songResult.length == 1 && errors.length == 0) {
         setState("Idle");
         return onDetected(
           songResult[0],
@@ -101,6 +122,7 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
       const songTitleResult = meta.filter((song) =>
         jpnText.toLowerCase().startsWith(song.title.toLowerCase())
       );
+
       if (songTitleResult.length == 1) {
         setState("Idle");
         return onDetected(
@@ -112,7 +134,10 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
         );
       }
 
+      errors.push("Cannot find song");
       setState("Idle");
+
+      setErrors(errors);
       return onDetected(null, null, stats);
     } catch (e) {
       console.log(e);
@@ -133,18 +158,28 @@ export default function DetectScore({ onDetected }: DetectScoreProps) {
     <div>
       <p className="pb-2 font-bold">Detect from screenshot</p>
       <span>
-        <label htmlFor="openFileInput" className="btn btn-primary w-full">
-          Select Screenshot
+        <label {...getRootProps()} className="btn btn-primary w-full">
+          {isDragActive ? "Drop Screenshot" : "Select Screenshot"}
         </label>
         <input
-          type="file"
-          id="openFileInput"
-          onChange={onFileChange}
+          {...getInputProps()}
           className="hidden"
           disabled={state == "Recognizing"}
         />
       </span>
+
       <p className="mt-2">State: {state}</p>
+
+      {errors.length > 0 && (
+        <div className="rounded-md p-4 border border-error">
+          <strong>Error happened during last detect:</strong>
+          <ul className="list-disc list-inside">
+            {errors.map((err) => (
+              <li>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
