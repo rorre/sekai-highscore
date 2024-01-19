@@ -27,7 +27,7 @@ function Song({ song, onDifficultyClick, selectedDifficulty }: SongProps) {
         <img
           className="aspect-square w-80"
           loading="lazy"
-          src={`https://storage.sekai.best/sekai-assets/music/jacket/${song.assetbundleName}_rip/${song.assetbundleName}.webp`}
+          src={`/jackets/${song.assetbundleName}.png`}
         ></img>
         <strong>{song.title}</strong>
         <p>{song.composer}</p>
