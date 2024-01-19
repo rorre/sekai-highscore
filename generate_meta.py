@@ -1,9 +1,11 @@
 import dataclasses
 import inspect
 import json
+import os
 import requests
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Literal
 
 Difficulty = Literal["easy", "normal", "hard", "expert", "master", "append"]
@@ -47,9 +49,12 @@ class Song:
         )
 
 
+print("> Request songs")
 songs = requests.get(
     "https://sekai-world.github.io/sekai-master-db-diff/musics.json"
 ).json()
+
+print("> Request diffs")
 diffs = requests.get(
     "https://sekai-world.github.io/sekai-master-db-diff/musicDifficulties.json"
 ).json()
@@ -86,3 +91,19 @@ with open("src/meta.json", "w", encoding="utf-8") as f:
         cls=EnhancedJSONEncoder,
         ensure_ascii=False,
     )
+
+base_dir = Path("public/jackets")
+base_dir.mkdir(exist_ok=True)
+
+print("> Request jacket images")
+for song in song_mapper.values():
+    print(">", song.title)
+    url = f"https://storage.sekai.best/sekai-assets/music/jacket/{song.assetbundleName}_rip/{song.assetbundleName}.png"
+    r = requests.get(url)
+
+    path = base_dir / f"{song.assetbundleName}.png"
+    if os.path.exists(path):
+        continue
+
+    with open(path, "wb") as f:
+        f.write(r.content)
